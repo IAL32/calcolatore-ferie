@@ -19,6 +19,10 @@
   let asOfStr = $state(formatDate(new Date())); // Default today
   let leaves = $state<LeaveEntry[]>([]);
 
+  // Config
+  let ferieYearly = $state(160.0);
+  let parYearly = $state(104.0);
+
   // New leave input state
   let isRange = $state(false);
   let isHoliday = $state(false); // Toggle for adding holiday
@@ -28,7 +32,9 @@
   let newLeaveNote = $state("");
 
   // Derived
-  let balance = $derived(calculateBalance(asOfStr, startStr, leaves));
+  let balance = $derived(
+    calculateBalance(asOfStr, startStr, leaves, ferieYearly, parYearly),
+  );
   let currentYear = $derived(new Date(parseDate(asOfStr)).getFullYear());
 
   // Persistence
@@ -45,11 +51,19 @@
       const y = new Date(startStr).getFullYear();
       leaves = getHolidaysForYear(y);
     }
+
+    const savedFerie = localStorage.getItem("ferie_yearly_hours");
+    if (savedFerie) ferieYearly = parseFloat(savedFerie);
+
+    const savedPar = localStorage.getItem("par_yearly_hours");
+    if (savedPar) parYearly = parseFloat(savedPar);
   });
 
   $effect(() => {
     localStorage.setItem("ferie_start_date", startStr);
     localStorage.setItem("ferie_leaves", JSON.stringify(leaves));
+    localStorage.setItem("ferie_yearly_hours", ferieYearly.toString());
+    localStorage.setItem("par_yearly_hours", parYearly.toString());
   });
 
   function addLeave() {
@@ -436,6 +450,34 @@
             id="as-of-date"
             type="date"
             bind:value={asOfStr}
+            class="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+          />
+        </div>
+        <div class="space-y-2">
+          <label
+            for="ferie-yearly"
+            class="block text-xs font-medium text-slate-400 uppercase"
+            >Ore Ferie / Anno</label
+          >
+          <input
+            id="ferie-yearly"
+            type="number"
+            step="0.5"
+            bind:value={ferieYearly}
+            class="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+          />
+        </div>
+        <div class="space-y-2">
+          <label
+            for="par-yearly"
+            class="block text-xs font-medium text-slate-400 uppercase"
+            >Ore PAR / Anno</label
+          >
+          <input
+            id="par-yearly"
+            type="number"
+            step="0.5"
+            bind:value={parYearly}
             class="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
           />
         </div>

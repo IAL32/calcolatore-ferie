@@ -133,10 +133,12 @@ export function accrueHoursBetween(
 
 export function earnedAsOf(
     asOf: string,
-    start: string
+    start: string,
+    feriePerYear: number = FERIE_HOURS_PER_MONTH * 12,
+    parPerYear: number = PAR_HOURS_PER_MONTH * 12
 ): { ferie: number; par: number } {
-    const ferie = accrueHoursBetween(start, asOf, FERIE_HOURS_PER_MONTH);
-    const par = accrueHoursBetween(start, asOf, PAR_HOURS_PER_MONTH);
+    const ferie = accrueHoursBetween(start, asOf, feriePerYear / 12);
+    const par = accrueHoursBetween(start, asOf, parPerYear / 12);
     return { ferie, par };
 }
 
@@ -167,9 +169,11 @@ export function allocateUsage(
 export function calculateBalance(
     asOf: string,
     start: string,
-    leaves: LeaveEntry[]
+    leaves: LeaveEntry[],
+    feriePerYear?: number,
+    parPerYear?: number
 ): BalanceReport {
-    const { ferie, par } = earnedAsOf(asOf, start);
+    const { ferie, par } = earnedAsOf(asOf, start, feriePerYear, parPerYear);
 
     // used = sum(le.hours for le in leaves if le.d <= as_of)
     const asOfDate = parseDate(asOf);
