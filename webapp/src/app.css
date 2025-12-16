@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+:root {
+  --color-slate-900: theme('colors.slate.900');
+  --color-slate-700: theme('colors.slate.700');
+  --color-slate-600: theme('colors.slate.600');
+}
+
+body {
+  background-color: var(--color-slate-900);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: var(--color-slate-900);
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-slate-700);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-slate-600);
+}
