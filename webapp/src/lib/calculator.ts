@@ -178,7 +178,7 @@ export function calculateBalance(
     // used = sum(le.hours for le in leaves if le.d <= as_of)
     const asOfDate = parseDate(asOf);
     const used = leaves
-        .filter((l) => parseDate(l.d) <= asOfDate)
+        //.filter((l) => parseDate(l.d) <= asOfDate) // User requested to include future leaves
         .reduce((acc, l) => acc + l.hours, 0);
 
     const { ferie: ferieRem, par: parRem } = allocateUsage(ferie, par, used);

@@ -71,11 +71,11 @@ describe('Calculator Logic', () => {
 
         expect(rep.ferie_earned).toBeCloseTo(FERIE_HOURS_PER_MONTH, 5);
         expect(rep.par_earned).toBeCloseTo(PAR_HOURS_PER_MONTH, 5);
-        expect(rep.used).toBe(8);
+        expect(rep.used).toBe(16); // 8 past + 8 future
 
-        // Usage 8 < Ferie (13.33)
-        // Ferie Rem = 13.33 - 8 = 5.33
-        expect(rep.ferie_rem).toBeCloseTo(FERIE_HOURS_PER_MONTH - 8, 5);
+        // Usage 16 > Ferie (13.33)
+        // Ferie Rem = 13.33 - 16 = -2.66...
+        expect(rep.ferie_rem).toBeCloseTo(FERIE_HOURS_PER_MONTH - 16, 5);
         expect(rep.par_rem).toBeCloseTo(PAR_HOURS_PER_MONTH, 5);
     });
 
