@@ -2,12 +2,11 @@
     import { parseDate, type LeaveEntry } from "../calculator";
 
     interface Props {
-        allLeaves: LeaveEntry[];
-        manualLeaves: LeaveEntry[];
+        leaves: LeaveEntry[];
         onRemoveGroup: (group: GroupedLeave) => void;
     }
 
-    let { allLeaves, manualLeaves, onRemoveGroup }: Props = $props();
+    let { leaves, onRemoveGroup }: Props = $props();
 
     // Grouping Logic - Moved from App.svelte
     type GroupedLeave = {
@@ -24,14 +23,14 @@
     };
 
     let groupedLeaves = $derived.by(() => {
-        if (allLeaves.length === 0) return [];
+        if (leaves.length === 0) return [];
 
         const groups: GroupedLeave[] = [];
         // Leaves are already sorted by date
 
         let currentGroup: GroupedLeave | null = null;
 
-        allLeaves.forEach((leave, index) => {
+        leaves.forEach((leave, index) => {
             const lType = leave.type || "ferie";
 
             // Requirement: Don't show "festa" items in the list
