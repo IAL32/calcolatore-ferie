@@ -62,6 +62,30 @@
   );
   let currentYear = $derived(new Date(parseDate(asOfStr)).getFullYear());
 
+  // Year Navigation State
+  let viewYear = $state(new Date().getFullYear());
+
+  let availableYears = $derived.by(() => {
+    // Only show 3 years max: [viewYear-1, viewYear, viewYear+1]
+    const startYear = new Date(startStr).getFullYear();
+    const targets = [viewYear - 1, viewYear, viewYear + 1];
+
+    return targets.filter((y) => y >= startYear);
+  });
+
+  function prevYear() {
+    const startYear = new Date(startStr).getFullYear();
+    if (viewYear > startYear) {
+      viewYear--;
+    }
+  }
+
+  function nextYear() {
+    // Is there an upper limit? Maybe current year + 5? Or just no limit.
+    // User didn't specify upper limit.
+    viewYear++;
+  }
+
   // Persistence
   onMount(() => {
     // Legacy migration? No, just use new keys.
@@ -211,6 +235,30 @@
       target.value = "";
     };
     reader.readAsText(file);
+  }
+
+  function resetData() {
+    if (
+      !confirm(
+        "Sei sicuro di voler resettare TUTTI i dati e la configurazione? Questa azione non può essere annullata.",
+      )
+    ) {
+      return;
+    }
+
+    userLeaves = [];
+    startStr = "2025-01-01";
+    asOfStr = formatDate(new Date());
+    ferieYearly = 160.0;
+    parYearly = 104.0;
+    province = "MI";
+
+    // Reset inputs
+    newLeaveDate = "";
+    newLeaveDateEnd = "";
+    newLeaveHours = 8;
+    newLeaveNote = "";
+    isRange = false;
   }
 
   // Grouping Logic
@@ -558,10 +606,60 @@
       </div>
 
       <!-- Import/Export -->
-      <div class="mt-6 pt-6 border-t border-white/5 flex gap-4">
+      <div
+        class="mt-6 pt-6 border-t border-white/5 flex justify-between items-center"
+      >
+        <div class="flex gap-4">
+          <button
+            onclick={exportCSV}
+            class="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-sm font-medium transition-colors"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+              />
+            </svg>
+            Esporta CSV
+          </button>
+          <label
+            class="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-sm font-medium transition-colors cursor-pointer"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+              />
+            </svg>
+            Importa CSV
+            <input
+              type="file"
+              accept=".csv"
+              onchange={importCSV}
+              class="hidden"
+            />
+          </label>
+        </div>
+
         <button
-          onclick={exportCSV}
-          class="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-sm font-medium transition-colors"
+          onclick={resetData}
+          class="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-sm font-medium transition-colors border border-red-500/20"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -574,53 +672,89 @@
               stroke-linecap="round"
               stroke-linejoin="round"
               stroke-width="2"
-              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
             />
           </svg>
-          Esporta CSV
+          Reset Tutto
         </button>
-        <label
-          class="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-sm font-medium transition-colors cursor-pointer"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
-            />
-          </svg>
-          Importa CSV
-          <input
-            type="file"
-            accept=".csv"
-            onchange={importCSV}
-            class="hidden"
-          />
-        </label>
       </div>
     </section>
 
-    <!-- Leaves List -->
     <section class="bg-slate-800/30 border border-white/5 rounded-2xl p-6">
       <h3
         class="text-lg font-semibold text-white mb-6 flex justify-between items-center"
       >
         <span>Storico & Simulazione</span>
-        <span
-          class="text-xs font-normal text-slate-400 bg-slate-800 px-3 py-1 rounded-full"
-          >{leaves.length} voci</span
-        >
+        <div class="flex gap-2 items-center">
+          <!-- Year Navigation -->
+          <div
+            class="flex items-center gap-1 bg-slate-900/50 rounded-lg p-1 mr-4"
+          >
+            <button
+              onclick={prevYear}
+              disabled={viewYear <= new Date(startStr).getFullYear()}
+              aria-label="Anno precedente"
+              class="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+            </button>
+
+            {#each availableYears as y}
+              <button
+                onclick={() => (viewYear = y)}
+                class="px-2 py-0.5 text-xs font-mono rounded transition-colors {viewYear ===
+                y
+                  ? 'bg-indigo-600 text-white shadow'
+                  : 'text-slate-500 hover:text-slate-300'}"
+              >
+                {y}
+              </button>
+            {/each}
+
+            <button
+              onclick={nextYear}
+              aria-label="Anno successivo"
+              class="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            </button>
+          </div>
+
+          <span
+            class="text-xs font-normal text-slate-400 bg-slate-800 px-3 py-1 rounded-full"
+            >{userLeaves.length} voci</span
+          >
+        </div>
       </h3>
 
       <div class="mb-8">
-        <YearHeatmap year={currentYear} {leaves} />
+        <YearHeatmap year={viewYear} {leaves} />
       </div>
 
       <!-- Add New -->
