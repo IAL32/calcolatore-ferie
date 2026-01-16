@@ -5,6 +5,7 @@ import {
     calculateBalance,
     FERIE_HOURS_PER_MONTH,
     PAR_HOURS_PER_MONTH,
+    getHolidaysForYear,
 } from './calculator';
 
 describe('Calculator Logic', () => {
@@ -76,5 +77,20 @@ describe('Calculator Logic', () => {
         // Ferie Rem = 13.33 - 8 = 5.33
         expect(rep.ferie_rem).toBeCloseTo(FERIE_HOURS_PER_MONTH - 8, 5);
         expect(rep.par_rem).toBeCloseTo(PAR_HOURS_PER_MONTH, 5);
+    });
+
+    it('calculates holidays for Milano', () => {
+        const holidays = getHolidaysForYear(2025, 'MI'); // Default
+        const santAmbrogio = holidays.find(h => h.note === "Sant'Ambrogio");
+        expect(santAmbrogio).toBeDefined();
+        if (santAmbrogio) {
+            expect(santAmbrogio.d).toBe('2025-12-07');
+        }
+    });
+
+    it('calculates holidays for National (no specific province)', () => {
+        const holidays = getHolidaysForYear(2025, 'IT');
+        const santAmbrogio = holidays.find(h => h.note === "Sant'Ambrogio");
+        expect(santAmbrogio).toBeUndefined();
     });
 });

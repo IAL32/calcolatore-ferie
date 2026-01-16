@@ -10,6 +10,7 @@
     parseDate,
     type BalanceReport,
     type LeaveEntry,
+    type Province,
   } from "./lib/calculator";
 
   import YearHeatmap from "./lib/YearHeatmap.svelte";
@@ -17,21 +18,45 @@
   // Runes
   let startStr = $state("2025-01-01"); // Default start
   let asOfStr = $state(formatDate(new Date())); // Default today
-  let leaves = $state<LeaveEntry[]>([]);
+  let userLeaves = $state<LeaveEntry[]>([]); // User entered leaves only
 
   // Config
   let ferieYearly = $state(160.0);
   let parYearly = $state(104.0);
+  let province = $state<Province>("MI");
+
+  // Flag to track if we are performing a province update to avoid loops if needed
+  // Not needed if we just rely on reactivity
 
   // New leave input state
   let isRange = $state(false);
-  let isHoliday = $state(false); // Toggle for adding holiday
+  // isHoliday removed as per requirement
   let newLeaveDate = $state("");
   let newLeaveDateEnd = $state("");
   let newLeaveHours = $state(8);
   let newLeaveNote = $state("");
 
   // Derived
+
+  // Calculate holidays based on years present in user leaves + current/start settings
+  let holidays = $derived.by(() => {
+    const years = new Set<number>();
+    years.add(new Date().getFullYear());
+    years.add(new Date(startStr).getFullYear());
+    userLeaves.forEach((l) => years.add(parseDate(l.d).getFullYear()));
+
+    let h: LeaveEntry[] = [];
+    years.forEach((y) => {
+      h = [...h, ...getHolidaysForYear(y, province)];
+    });
+    return h;
+  });
+
+  // Combined leaves for calculation
+  let leaves = $derived(
+    [...userLeaves, ...holidays].sort((a, b) => a.d.localeCompare(b.d)),
+  );
+
   let balance = $derived(
     calculateBalance(asOfStr, startStr, leaves, ferieYearly, parYearly),
   );
@@ -45,30 +70,37 @@
 
     const savedLeaves = localStorage.getItem("ferie_leaves");
     if (savedLeaves) {
-      leaves = JSON.parse(savedLeaves);
-    } else {
-      // First time load: use defaults for the starting year
-      const y = new Date(startStr).getFullYear();
-      leaves = getHolidaysForYear(y);
+      const parsed: LeaveEntry[] = JSON.parse(savedLeaves);
+      // Migration: Filter out old 'festa' items if they were saved in the single list
+      // We only want to keep user-entered items (ferie)
+      userLeaves = parsed.filter((l) => l.type !== "festa");
     }
+    // No else block needed: if empty, userLeaves is [], holidays derived automatically
 
     const savedFerie = localStorage.getItem("ferie_yearly_hours");
     if (savedFerie) ferieYearly = parseFloat(savedFerie);
 
     const savedPar = localStorage.getItem("par_yearly_hours");
     if (savedPar) parYearly = parseFloat(savedPar);
+
+    const savedProvince = localStorage.getItem("ferie_province");
+    if (savedProvince && (savedProvince === "MI" || savedProvince === "IT")) {
+      province = savedProvince as Province;
+    }
   });
+
+  // Reactive holiday update removed - now handled via derived `holidays`
 
   $effect(() => {
     localStorage.setItem("ferie_start_date", startStr);
-    localStorage.setItem("ferie_leaves", JSON.stringify(leaves));
+    localStorage.setItem("ferie_leaves", JSON.stringify(userLeaves));
     localStorage.setItem("ferie_yearly_hours", ferieYearly.toString());
     localStorage.setItem("par_yearly_hours", parYearly.toString());
+    localStorage.setItem("ferie_province", province);
   });
 
   function addLeave() {
-    if (isRange && !isHoliday) {
-      // Range not supported for holidays yet, or simpler to keep single?
+    if (isRange) {
       // Range logic
       const days = getWorkingDaysInRange(newLeaveDate, newLeaveDateEnd);
       const newEntries: LeaveEntry[] = days.map((d) => ({
@@ -77,20 +109,19 @@
         note: newLeaveNote,
         type: "ferie",
       }));
-      leaves = [...leaves, ...newEntries].sort((a, b) =>
+      userLeaves = [...userLeaves, ...newEntries].sort((a, b) =>
         a.d.localeCompare(b.d),
       );
     } else {
       // Single Day
-      // Check for duplicates? For now allow overwrite or simple append.
-      leaves = [
-        ...leaves,
+      userLeaves = [
+        ...userLeaves,
         {
           d: newLeaveDate,
-          hours: isHoliday ? 0 : newLeaveHours,
+          hours: newLeaveHours,
           note: newLeaveNote,
-          type: (isHoliday ? "festa" : "ferie") as "festa" | "ferie",
-        },
+          type: "ferie",
+        } as LeaveEntry,
       ].sort((a, b) => a.d.localeCompare(b.d));
     }
 
@@ -168,10 +199,10 @@
       }
 
       if (newLeaves.length > 0) {
-        leaves = newLeaves.sort((a, b) =>
+        userLeaves = newLeaves.sort((a, b) =>
           parseDate(a.d) > parseDate(b.d) ? 1 : -1,
         );
-        alert(`Importate ${leaves.length} voci.`);
+        alert(`Importate ${userLeaves.length} voci.`);
       } else {
         alert("Nessuna voce valida trovata nel CSV.");
       }
@@ -206,6 +237,9 @@
 
     leaves.forEach((leave, index) => {
       const lType = leave.type || "ferie";
+
+      // Requirement: Don't show "festa" items in the list
+      if (lType === "festa") return;
 
       if (!currentGroup) {
         currentGroup = {
@@ -284,8 +318,33 @@
     // Better: identifying leaves by their properties is ambiguous (duplicates allowed).
     // Let's rely on iteration structure.
     // We will generate a SET of indices to remove.
-    const indicesToRemove = new Set(group.originalIndices);
-    leaves = leaves.filter((_, i) => !indicesToRemove.has(i));
+    // We will generate a SET of indices to remove.
+    // If we are removing a group, it might be holidays.
+    if (group.type === "festa") return; // Cannot remove holidays
+
+    // We need to match userLeaves.
+    // Problem: originalIndices referred to `leaves` (combined).
+    // We can't use indices from `groupedLeaves` (combined) to filter `userLeaves` (subset).
+
+    // Instead, filter `userLeaves` by matching content of group?
+    // Or simpler: filter out any user leave that falls in the group range/criteria.
+
+    const groupStart = parseDate(group.start);
+    const groupEnd = parseDate(group.end);
+
+    userLeaves = userLeaves.filter((l) => {
+      // Keep if type is diff (shouldn't happen if we only select ferie groups)
+      if (l.type !== group.type) return true;
+
+      const d = parseDate(l.d);
+      // If in range
+      if (d >= groupStart && d <= groupEnd) {
+        // Also check hours/note?
+        // Usually date range is sufficient for "removing this block"
+        return false;
+      }
+      return true;
+    });
   }
 
   function fmtH(h: number) {
@@ -481,6 +540,21 @@
             class="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
           />
         </div>
+        <div class="space-y-2">
+          <label
+            for="province-select"
+            class="block text-xs font-medium text-slate-400 uppercase"
+            >Provincia</label
+          >
+          <select
+            id="province-select"
+            bind:value={province}
+            class="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all appearance-none"
+          >
+            <option value="MI">Milano</option>
+            <option value="IT">Altro (Nazionale)</option>
+          </select>
+        </div>
       </div>
 
       <!-- Import/Export -->
@@ -555,22 +629,8 @@
       >
         <!-- Mode Toggle & Type -->
         <div class="flex justify-between mb-4">
-          <!-- Type Toggle -->
-          <div class="flex items-center gap-2">
-            <label class="inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                bind:checked={isHoliday}
-                class="sr-only peer"
-              />
-              <div
-                class="relative w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"
-              ></div>
-              <span class="ms-3 text-sm font-medium text-slate-300"
-                >{isHoliday ? "Giorno Festivo" : "Ferie/Permesso"}</span
-              >
-            </label>
-          </div>
+          <!-- Type Toggle removed -->
+          <!-- Range Toggle -->
 
           <!-- Range Toggle -->
           <div class="bg-slate-800 p-1 rounded-lg inline-flex">
@@ -606,21 +666,19 @@
                 class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
               />
             </div>
-            {#if !isHoliday}
-              <div class="space-y-1">
-                <label
-                  for="new-leave-hours"
-                  class="block text-xs text-slate-400">Ore</label
-                >
-                <input
-                  id="new-leave-hours"
-                  type="number"
-                  step="0.5"
-                  bind:value={newLeaveHours}
-                  class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                />
-              </div>
-            {/if}
+
+            <div class="space-y-1">
+              <label for="new-leave-hours" class="block text-xs text-slate-400"
+                >Ore</label
+              >
+              <input
+                id="new-leave-hours"
+                type="number"
+                step="0.5"
+                bind:value={newLeaveHours}
+                class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+              />
+            </div>
           {:else}
             <div class="space-y-1">
               <label for="new-leave-start" class="block text-xs text-slate-400"
@@ -646,18 +704,14 @@
             </div>
           {/if}
 
-          <div class="space-y-1 md:col-span-{isRange || isHoliday ? '1' : '1'}">
+          <div class="space-y-1 md:col-span-1">
             <label for="new-leave-note" class="block text-xs text-slate-400"
               >Nota</label
             >
             <input
               id="new-leave-note"
               type="text"
-              placeholder={isHoliday
-                ? "Festa..."
-                : isRange
-                  ? "Ferie estive..."
-                  : "Visita..."}
+              placeholder={isRange ? "Ferie estive..." : "Visita..."}
               bind:value={newLeaveNote}
               onkeydown={(e) => e.key === "Enter" && addLeave()}
               class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -673,17 +727,10 @@
         </div>
         {#if isRange && newLeaveDate && newLeaveDateEnd}
           <div class="mt-2 text-xs text-slate-500">
-            {#if isHoliday}
-              Verranno inseriti {getWorkingDaysInRange(
-                newLeaveDate,
-                newLeaveDateEnd,
-              ).length} giorni come festivi.
-            {:else}
-              Verranno inseriti {getWorkingDaysInRange(
-                newLeaveDate,
-                newLeaveDateEnd,
-              ).length} giorni lavorativi (8h ciascuno).
-            {/if}
+            Verranno inseriti {getWorkingDaysInRange(
+              newLeaveDate,
+              newLeaveDateEnd,
+            ).length} giorni lavorativi (8h ciascuno).
           </div>
         {/if}
       </div>

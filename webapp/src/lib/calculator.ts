@@ -213,7 +213,9 @@ function calculateEaster(year: number): Date {
     return new Date(year, month - 1, day);
 }
 
-export function getHolidaysForYear(year: number): LeaveEntry[] {
+export type Province = 'MI' | 'IT'; // IT is generic national
+
+export function getHolidaysForYear(year: number, province: Province = 'MI'): LeaveEntry[] {
     const fixedHolidays: { month: number; day: number; note: string }[] = [
         { month: 0, day: 1, note: 'Capodanno' },
         { month: 0, day: 6, note: 'Epifania' },
@@ -226,6 +228,10 @@ export function getHolidaysForYear(year: number): LeaveEntry[] {
         { month: 11, day: 25, note: 'Natale' },
         { month: 11, day: 26, note: 'Santo Stefano' },
     ];
+
+    if (province === 'MI') {
+        fixedHolidays.push({ month: 11, day: 7, note: "Sant'Ambrogio" }); // Patron Saint of Milan
+    }
 
     const holidays: LeaveEntry[] = fixedHolidays.map((h) => ({
         d: formatDate(new Date(year, h.month, h.day)),
